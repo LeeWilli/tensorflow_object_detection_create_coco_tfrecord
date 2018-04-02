@@ -3,11 +3,11 @@ Attention Please!!!
 
 1)For easy use of this script, Your coco dataset directory struture should like this :
     +Your coco dataset root
-        +train2014
-        +val2014
+        +train2017
+        +val2017
         +annotations
-            -instances_train2014.json
-            -instances_val2014.json
+            -instances_train2017.json
+            -instances_val2017.json
 2)To use this script, you should download python coco tools from "http://mscoco.org/dataset/#download" and make it.
 After make, copy the pycocotools directory to the directory of this "create_coco_tf_record.py"
 or add the pycocotools path to  PYTHONPATH of ~/.bashrc file.
@@ -31,6 +31,7 @@ import tensorflow as tf
 import logging
 
 from object_detection.utils import dataset_util
+import hashlib
 
 flags = tf.app.flags
 flags.DEFINE_string('data_dir', '', 'Root directory to raw Microsoft COCO dataset.')
@@ -90,6 +91,7 @@ def load_coco_dection_dataset(imgs_dir, annotations_filepath, shuffle_img = True
         img_info['width'] = pic_width
         img_info['bboxes'] = bboxes
         img_info['labels'] = labels
+        img_info['filename'] = img_detail['file_name'] #add by Lee in 18/1/19
 
         coco_data.append(img_info)
     return coco_data
@@ -103,6 +105,8 @@ def dict_to_coco_example(img_data):
     Returns:
         example: The converted tf.Example
     """
+    key = hashlib.sha256(img_data['pixel_data']).hexdigest()
+
     bboxes = img_data['bboxes']
     xmin, xmax, ymin, ymax = [], [], [], []
     for bbox in bboxes:
@@ -119,19 +123,24 @@ def dict_to_coco_example(img_data):
         'image/object/bbox/ymin': dataset_util.float_list_feature(ymin),
         'image/object/bbox/ymax': dataset_util.float_list_feature(ymax),
         'image/object/class/label': dataset_util.int64_list_feature(img_data['labels']),
+        'image/source_id': dataset_util.bytes_feature(
+            img_data['filename'].encode('utf8')), #add by Lee in 18/1/19
         'image/encoded': dataset_util.bytes_feature(img_data['pixel_data']),
         'image/format': dataset_util.bytes_feature('jpeg'.encode('utf-8')),
+        'image/object/group_of': dataset_util.int64_list_feature([]),
+        'image/object/difficult': dataset_util.int64_list_feature([]),
     }))
     return example
 
+
 def main(_):
     if FLAGS.set == "train":
-        imgs_dir = os.path.join(FLAGS.data_dir, 'train2014')
-        annotations_filepath = os.path.join(FLAGS.data_dir,'annotations','instances_train2014.json')
+        imgs_dir = os.path.join(FLAGS.data_dir, 'train2017')
+        annotations_filepath = os.path.join(FLAGS.data_dir,'annotations','instances_train2017.json')
         print("Convert coco train file to tf record")
     elif FLAGS.set == "val":
-        imgs_dir = os.path.join(FLAGS.data_dir, 'val2014')
-        annotations_filepath = os.path.join(FLAGS.data_dir,'annotations','instances_val2014.json')
+        imgs_dir = os.path.join(FLAGS.data_dir, 'val2017')
+        annotations_filepath = os.path.join(FLAGS.data_dir,'annotations','instances_val2017.json')
         print("Convert coco val file to tf record")
     else:
         raise ValueError("you must either convert train data or val data")
